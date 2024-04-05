@@ -29,14 +29,78 @@ resource "aws_security_group" "main" {
   }
 }
 
+resource "aws_iam_policy" "main" {
+  name        = "${local.name_prefix}-policy"
+  path        = "/"
+  description = "${local.name_prefix}-policy"
+
+  policy = jsonencode({
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "VisualEditor0",
+        "Effect": "Allow",
+        "Action": [
+          "ssm:GetParameterHistory",
+          "ssm:GetParametersByPath",
+          "ssm:GetParameters",
+          "ssm:GetParameter"
+        ],
+        "Resource": "arn:aws:ssm:us-east-1:206243364202:parameter/rds.${var.env}.*"
+      },
+      {
+        "Sid": "VisualEditor1",
+        "Effect": "Allow",
+        "Action": "ssm:DescribeParameters",
+        "Resource": "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role" "main" {
+  name = "${local.name_prefix}-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Sid    = ""
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      },
+    ]
+  })
+
+  tags = merge(local.tags, { Name = "${local.name_prefix}-role" })
+}
+
+resource "aws_iam_group_policy_attachment" "attach" {
+  group      = aws_iam_role.main.name
+  policy_arn = aws_iam_policy.main.arn
+}
+
+resource "aws_iam_instance_profile" "main" {
+  name = "${local.name_prefix}-role"
+  role = aws_iam_role.main.name
+}
+
 resource "aws_launch_template" "main" {
   name                    = local.name_prefix
   image_id                = data.aws_ami.ami.id
   instance_type           = var.instance_type
   vpc_security_group_ids  = [aws_security_group.main.id]
+  iam_instance_profile {
+    name = "${local.name_prefix}-role"
+  }
+
   user_data               = base64encode(templatefile("${path.module}/userdata.sh",
     {
       component = var.component
+      env       = var.env
   }))
 
   tag_specifications {
@@ -105,7 +169,7 @@ resource "aws_lb_target_group" "public" {
 }
 
 resource "aws_lb_target_group_attachment" "public" {
-  count             = var.component == "frontend" ? length(tolist(data.dns_a_record_set.private_alb.addrs)) : 0
+  count             = var.component == "frontend" ? length(var.subnet_ids) : 0
   target_group_arn  = aws_lb_target_group.public[0].arn
   target_id         = element(tolist(data.dns_a_record_set.private_alb.addrs), count.index )
   port              = 80
@@ -128,3 +192,4 @@ resource "aws_lb_listener_rule" "public" {
     }
   }
 }
+
