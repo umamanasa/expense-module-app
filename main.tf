@@ -165,7 +165,7 @@ resource "aws_autoscaling_group" "main" {
 }
 
 resource "aws_route53_record" "main" {
-  name    = var.component == "frontend" ? var.env : "${var.component}-${var.env}"
+  name    = var.component == "frontend" ? var.env == "prod" ? "www" : var.env : "${var.component}-${var.env}"
   type    = "CNAME"
   zone_id = var.zone_id
   ttl     = 30
@@ -201,7 +201,7 @@ resource "aws_lb_listener_rule" "main" {
 
   condition {
     host_header {
-      values = [ var.component == "frontend" ? "${var.env}.manasareddy.online" : "${var.component}-${var.env}.manasareddy.online"]
+      values = [var.component == "frontend" ? "${var.env == "prod" ? "www" : var.env}.manasareddy.online" : "${var.component}-${var.env}.manasareddy.online"]
     }
   }
 }
@@ -247,7 +247,7 @@ resource "aws_lb_listener_rule" "public" {
 
   condition {
     host_header {
-      values = [ "${var.env}.manasareddy.online" ]
+      values = ["${var.env == "prod" ? "www" : var.env}.manasareddy.online"]
     }
   }
 }
