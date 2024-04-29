@@ -190,6 +190,7 @@ resource "aws_lb_target_group" "main" {
   port      = var.port
   protocol  = "HTTP"
   vpc_id    = var.vpc_id
+  deregistration_delay = 15
 
   health_check {
     enabled             = true
